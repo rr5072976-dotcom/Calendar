@@ -332,7 +332,7 @@ function ActivityPage() {
   </div>;
 }
 
-const IMPORT_TEMPLATE_CSV = 'title,startAt,endAt,description,guestEmails\r\n';
+const IMPORT_TEMPLATE_CSV = 'title,startAt,endAt,description,guestEmails,reminders\r\n';
 
 function downloadImportTemplate() {
   const blob = new Blob([IMPORT_TEMPLATE_CSV], { type: 'text/csv;charset=utf-8' });
@@ -401,29 +401,142 @@ function guessColumn(headers:string[], candidates:string[]) {
 }
 function parseImportDate(value:string) { const numeric=value.trim()!==''&&/^\d+(\.\d+)?$/.test(value.trim());return numeric?new Date((Number(value)-25569)*86400000):new Date(value); }
 
+function parseReminderSchedule(
+  value: string,
+  method: ReminderInput['method'],
+  localTime: string,
+): { reminders: ReminderInput[]; error?: string } {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'none') return { reminders: [] };
+  const tokens = trimmed.split(/[;,]/).map(token => token.trim()).filter(Boolean);
+  if (!tokens.length) return { reminders: [], error: 'Enter a reminder offset or “none”.' };
+  if (tokens.length > 20) return { reminders: [], error: 'Use no more than 20 reminders per event.' };
+  const units: Record<string, ReminderInput['unit']> = {
+    m: ReminderInputUnit.minutes, min: ReminderInputUnit.minutes, mins: ReminderInputUnit.minutes,
+    minute: ReminderInputUnit.minutes, minutes: ReminderInputUnit.minutes,
+    h: ReminderInputUnit.hours, hr: ReminderInputUnit.hours, hrs: ReminderInputUnit.hours,
+    hour: ReminderInputUnit.hours, hours: ReminderInputUnit.hours,
+    d: ReminderInputUnit.days, day: ReminderInputUnit.days, days: ReminderInputUnit.days,
+    w: ReminderInputUnit.weeks, wk: ReminderInputUnit.weeks, wks: ReminderInputUnit.weeks,
+    week: ReminderInputUnit.weeks, weeks: ReminderInputUnit.weeks,
+  };
+  const reminders: ReminderInput[] = [];
+  for (const token of tokens) {
+    const match = token.match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|wk|wks|week|weeks)$/i);
+    const amount = match ? Number(match[1]) : Number.NaN;
+    const unit = match ? units[match[2].toLowerCase()] : undefined;
+    if (!Number.isSafeInteger(amount) || amount < 0 || !unit) {
+      return { reminders: [], error: `“${token}” is not a valid reminder offset. Use values like “15 minutes; 1 day” or “none”.` };
+    }
+    if ((unit === ReminderInputUnit.days || unit === ReminderInputUnit.weeks) && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(localTime)) {
+      return { reminders: [], error: 'Choose a valid 24-hour reminder time for day or week offsets.' };
+    }
+    reminders.push({ enabled: true, amount, unit, localTime, method });
+  }
+  return { reminders };
+}
+
+function describeReminder(reminder: ReminderInput) {
+  const unit = reminder.amount === 1 ? reminder.unit.replace(/s$/, '') : reminder.unit;
+  const time = reminder.unit === ReminderInputUnit.days || reminder.unit === ReminderInputUnit.weeks
+    ? ` at ${reminder.localTime}`
+    : '';
+  return `${reminder.amount} ${unit}${time} · ${pretty(reminder.method)}`;
+}
+
+function BulkReminderSetup({
+  reminders,
+  onRemindersChange,
+  rowMethod,
+  onRowMethodChange,
+  rowTime,
+  onRowTimeChange,
+  onConfigurationChange,
+  rowColumnMapped,
+}: {
+  reminders: ReminderInput[];
+  onRemindersChange: (reminders: ReminderInput[]) => void;
+  rowMethod: ReminderInput['method'];
+  onRowMethodChange: (method: ReminderInput['method']) => void;
+  rowTime: string;
+  onRowTimeChange: (time: string) => void;
+  onConfigurationChange: () => void;
+  rowColumnMapped: boolean;
+}) {
+  const updateReminder = (index: number, update: Partial<ReminderInput>) => {
+    onConfigurationChange();
+    onRemindersChange(reminders.map((item, itemIndex) => itemIndex === index ? { ...item, ...update } : item));
+  };
+  return <section className="surface p-5 md:p-6" aria-labelledby="bulk-reminder-title">
+    <div className="flex items-start justify-between gap-3">
+      <div><div className="text-[10px] font-bold uppercase tracking-[.16em] text-[#698b78]">Optional</div><h2 id="bulk-reminder-title" className="mt-1 font-display text-xl font-semibold">Reminder schedule</h2><p className="mt-1 text-xs leading-5 text-[#828b86]">Set a default for every event. A reminder schedule in the file overrides it for that row.</p></div>
+      <Button kind="secondary" type="button" onClick={() => { onConfigurationChange(); onRemindersChange([...reminders, { enabled: true, amount: 15, unit: ReminderInputUnit.minutes, localTime: '09:00', method: ReminderInputMethod.email }]); }} disabled={reminders.length >= 20} testId="button-add-bulk-reminder"><Plus size={14}/>Add default</Button>
+    </div>
+    {reminders.length === 0
+      ? <p className="mt-4 rounded-lg bg-[#f6f5ef] px-3 py-2 text-xs text-[#818a84]" data-testid="text-no-default-reminders">No batch default. Add one here, or set reminder offsets on individual CSV rows.</p>
+      : <div className="mt-4 space-y-2">{reminders.map((reminder, index) => <div key={`bulk-reminder-${index}`} className="grid gap-2 rounded-lg bg-[#f6f5ef] p-3 sm:grid-cols-[.65fr_1fr_1fr_1fr_auto]" data-testid={`row-bulk-reminder-${index}`}>
+        <label className="text-[10px] font-semibold text-[#69746e]">Amount<input aria-label={`Default reminder amount ${index + 1}`} className="field mt-1 py-2" type="number" min="0" step="1" value={reminder.amount} onChange={event => updateReminder(index, { amount: Number(event.target.value) || 0 })} data-testid={`input-bulk-reminder-amount-${index}`}/></label>
+        <label className="text-[10px] font-semibold text-[#69746e]">Lead time<select aria-label={`Default reminder unit ${index + 1}`} className="field mt-1 py-2 text-xs" value={reminder.unit} onChange={event => updateReminder(index, { unit: event.target.value as ReminderInput['unit'] })} data-testid={`select-bulk-reminder-unit-${index}`}>{Object.values(ReminderInputUnit).map(unit => <option key={unit} value={unit}>{pretty(unit)} before</option>)}</select></label>
+        <label className="text-[10px] font-semibold text-[#69746e]">Delivery<select aria-label={`Default reminder method ${index + 1}`} className="field mt-1 py-2 text-xs" value={reminder.method} onChange={event => updateReminder(index, { method: event.target.value as ReminderInput['method'] })} data-testid={`select-bulk-reminder-method-${index}`}>{Object.values(ReminderInputMethod).map(method => <option key={method} value={method}>{pretty(method)}</option>)}</select></label>
+        <label className="text-[10px] font-semibold text-[#69746e]">Time for day/week<input aria-label={`Default reminder time ${index + 1}`} className="field mt-1 py-2 text-xs" type="time" value={reminder.localTime} onChange={event => updateReminder(index, { localTime: event.target.value })} data-testid={`input-bulk-reminder-time-${index}`}/></label>
+        <button type="button" onClick={() => { onConfigurationChange(); onRemindersChange(reminders.filter((_, itemIndex) => itemIndex !== index)); }} aria-label={`Remove default reminder ${index + 1}`} className="justify-self-end self-end rounded-lg p-2 text-[#a15b4c] hover:bg-[#f8e9e4]" data-testid={`button-remove-bulk-reminder-${index}`}><Trash2 size={14}/></button>
+      </div>)}</div>}
+    <div className="mt-4 rounded-xl border border-[#e8e4da] bg-[#fbfaf5] p-4">
+      <div className="text-xs font-semibold text-[#485750]">Per-row CSV schedules</div>
+      <p className="mt-1 text-[11px] leading-5 text-[#78827d]">Map the optional Reminder schedule column below. Use offsets such as <span className="font-mono-ui">15 minutes; 1 day</span>. Blank cells use the batch default; enter <span className="font-mono-ui">none</span> to skip reminders for one event. CSV schedules use the method and time below.</p>
+      {rowColumnMapped && <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <label className="text-[10px] font-semibold text-[#69746e]">CSV reminder delivery<select className="field mt-1 py-2 text-xs" value={rowMethod} onChange={event => { onConfigurationChange(); onRowMethodChange(event.target.value as ReminderInput['method']); }} data-testid="select-csv-reminder-method">{Object.values(ReminderInputMethod).map(method => <option key={method} value={method}>{pretty(method)}</option>)}</select></label>
+        <label className="text-[10px] font-semibold text-[#69746e]">Time for day/week offsets<input className="field mt-1 py-2 text-xs" type="time" value={rowTime} onChange={event => { onConfigurationChange(); onRowTimeChange(event.target.value); }} data-testid="input-csv-reminder-time"/></label>
+      </div>}
+      <p className="mt-2 text-[10px] leading-4 text-[#89918c]">Email reminders can be scheduled further ahead. Google Calendar limits popup reminders to five within four weeks of an event.</p>
+    </div>
+  </section>;
+}
+
 function ImportsPage() {
   const [csv,setCsv]=useState<CsvData|null>(null); const [fileName,setFileName]=useState(''); const [mapping,setMapping]=useState<Record<string,string>>({}); const [localError,setLocalError]=useState(''); const [result,setResult]=useState<ImportResult|null>(null);
   const preview=usePreviewImport(); const execute=useExecuteImport(); const history=useListImports(); const calendars=useListCalendars(); const qc=useQueryClient();
-  const fields=[{key:'title',label:'Event title',required:true},{key:'startAt',label:'Start date & time',required:true},{key:'endAt',label:'End date & time',required:true},{key:'description',label:'Description',required:false},{key:'guestEmails',label:'Guest emails',required:false}];
-  const onFile=async(file?:File)=>{if(!file)return;setLocalError('');setResult(null);preview.reset();try{const lower=file.name.toLowerCase();if(lower.endsWith('.xls'))throw new Error('Legacy Excel files are not supported. Save this workbook as .xlsx or .csv.');const parsed=lower.endsWith('.xlsx')?await parseXlsx(file):parseCsv(await file.text());if(parsed.headers.length<2||!parsed.rows.length)throw new Error('This file has no header row or event rows.');setCsv(parsed);setFileName(file.name);setMapping({title:guessColumn(parsed.headers,['title','subject','summary','event']),startAt:guessColumn(parsed.headers,['start','startdate','begins']),endAt:guessColumn(parsed.headers,['end','enddate','ends']),description:guessColumn(parsed.headers,['description','details','notes']),guestEmails:guessColumn(parsed.headers,['guest email','guest','attendee','invitee','invited','email'])});}catch(err){setCsv(null);setLocalError(err instanceof Error?err.message:'We couldn’t read this file. Check that it is a valid CSV or Excel workbook.');}};
+  const [defaultReminders,setDefaultReminders]=useState<ReminderInput[]>([]);
+  const [csvReminderMethod,setCsvReminderMethod]=useState<ReminderInput['method']>(ReminderInputMethod.email);
+  const [csvReminderTime,setCsvReminderTime]=useState('09:00');
+  const fields=[{key:'title',label:'Event title',required:true},{key:'startAt',label:'Start date & time',required:true},{key:'endAt',label:'End date & time',required:true},{key:'description',label:'Description',required:false},{key:'guestEmails',label:'Guest emails',required:false},{key:'reminderSchedule',label:'Reminder schedule',required:false}];
+  const reminderConfigurationChanged=()=>{preview.reset();setResult(null);setLocalError('');};
+  const onFile=async(file?:File)=>{if(!file)return;setLocalError('');setResult(null);preview.reset();try{const lower=file.name.toLowerCase();if(lower.endsWith('.xls'))throw new Error('Legacy Excel files are not supported. Save this workbook as .xlsx or .csv.');const parsed=lower.endsWith('.xlsx')?await parseXlsx(file):parseCsv(await file.text());if(parsed.headers.length<2||!parsed.rows.length)throw new Error('This file has no header row or event rows.');setCsv(parsed);setFileName(file.name);setMapping({title:guessColumn(parsed.headers,['title','subject','summary','event']),startAt:guessColumn(parsed.headers,['start','startdate','begins']),endAt:guessColumn(parsed.headers,['end','enddate','ends']),description:guessColumn(parsed.headers,['description','details','notes']),guestEmails:guessColumn(parsed.headers,['guest email','guest','attendee','invitee','invited','email']),reminderSchedule:guessColumn(parsed.headers,['reminder schedule','reminder offset','reminders','reminder'])});}catch(err){setCsv(null);setLocalError(err instanceof Error?err.message:'We couldn’t read this file. Check that it is a valid CSV or Excel workbook.');}};
   const normalizedRows = useMemo<ImportEventRow[]>(()=>{
     if(!csv)return[];
     const get=(line:string[],key:string)=>{const idx=csv.headers.indexOf(mapping[key]);return idx>=0?line[idx]||'':'';};
     return csv.rows.map((line,i)=>{
       const start=parseImportDate(get(line,'startAt'));const end=parseImportDate(get(line,'endAt'));
-      return {rowNumber:i+2,idempotencyKey:crypto.randomUUID(),title:get(line,'title'),startAt:Number.isNaN(start.getTime())?'':start.toISOString(),endAt:Number.isNaN(end.getTime())?'':end.toISOString(),allDay:false,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',description:get(line,'description')||undefined,guestEmails:get(line,'guestEmails').split(/[;,]/).map(s=>s.trim()).filter(Boolean),calendarId:calendars.data?.find(c=>c.primary)?.id||calendars.data?.[0]?.id||'',repeat:'none',createMeet:false,reminders:[]};
+      const schedule=get(line,'reminderSchedule').trim();
+      const parsedSchedule=schedule?parseReminderSchedule(schedule,csvReminderMethod,csvReminderTime):{reminders:defaultReminders};
+      return {rowNumber:i+2,idempotencyKey:crypto.randomUUID(),title:get(line,'title'),startAt:Number.isNaN(start.getTime())?'':start.toISOString(),endAt:Number.isNaN(end.getTime())?'':end.toISOString(),allDay:false,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',description:get(line,'description')||undefined,guestEmails:get(line,'guestEmails').split(/[;,]/).map(s=>s.trim()).filter(Boolean),calendarId:calendars.data?.find(c=>c.primary)?.id||calendars.data?.[0]?.id||'',repeat:'none',createMeet:false,reminders:parsedSchedule.error?[]:parsedSchedule.reminders.map(reminder=>({...reminder}))};
     });
-  },[csv,mapping,calendars.data]);
+  },[csv,mapping,calendars.data,defaultReminders,csvReminderMethod,csvReminderTime]);
+  const reminderScheduleErrors=useMemo(()=>{
+    const errors=new Map<number,string>();
+    if(!csv||!mapping.reminderSchedule)return errors;
+    const columnIndex=csv.headers.indexOf(mapping.reminderSchedule);
+    csv.rows.forEach((line,index)=>{
+      const value=columnIndex>=0?(line[columnIndex]||'').trim():'';
+      if(!value)return;
+      const parsed=parseReminderSchedule(value,csvReminderMethod,csvReminderTime);
+      if(parsed.error)errors.set(index+2,parsed.error);
+    });
+    return errors;
+  },[csv,mapping.reminderSchedule,csvReminderMethod,csvReminderTime]);
   const guestsByRow = useMemo(()=>new Map(normalizedRows.map(row=>[row.rowNumber,row.guestEmails])),[normalizedRows]);
+  const remindersByRow = useMemo(()=>new Map(normalizedRows.map(row=>[row.rowNumber,row.reminders])),[normalizedRows]);
   const validGuestCount=preview.data?preview.data.rows.filter(row=>row.valid).reduce((sum,row)=>sum+(guestsByRow.get(row.rowNumber)?.length||0),0):0;
-  const runPreview=()=>{const missing=fields.filter(f=>f.required&&!mapping[f.key]);if(missing.length){setLocalError(`Map the required columns: ${missing.map(f=>f.label).join(', ')}.`);return;}if(!normalizedRows.length){setLocalError('There are no event rows to preview.');return;}setLocalError('');preview.mutate({data:{rows:normalizedRows}},{onSuccess:()=>{setResult(null);},onError:()=>setLocalError('Preview could not be prepared. Check the mapped dates and try again.')});};
+  const validReminderCount=preview.data?preview.data.rows.filter(row=>row.valid).reduce((sum,row)=>sum+(remindersByRow.get(row.rowNumber)?.length||0),0):0;
+  const runPreview=()=>{const missing=fields.filter(f=>f.required&&!mapping[f.key]);if(missing.length){setLocalError(`Map the required columns: ${missing.map(f=>f.label).join(', ')}.`);return;}const invalidDefault=defaultReminders.find(reminder=>!Number.isSafeInteger(reminder.amount)||reminder.amount<0||((reminder.unit===ReminderInputUnit.days||reminder.unit===ReminderInputUnit.weeks)&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(reminder.localTime)));if(invalidDefault){setLocalError('Check the amount and 24-hour time in your default reminder schedule.');return;}for(const [rowNumber,error] of reminderScheduleErrors){setLocalError(`Reminder schedule on row ${rowNumber}: ${error}`);return;}if(!normalizedRows.length){setLocalError('There are no event rows to preview.');return;}setLocalError('');preview.mutate({data:{rows:normalizedRows}},{onSuccess:()=>{setResult(null);},onError:()=>setLocalError('Preview could not be prepared. Check the mapped dates and reminder schedules, then try again.')});};
   const executeImport=()=>{if(!preview.data)return;execute.mutate({batchId:preview.data.batchId,data:{confirmed:true}},{onSuccess:(data)=>{qc.invalidateQueries({queryKey:getListImportsQueryKey()});qc.invalidateQueries({queryKey:getListEventsQueryKey()});qc.invalidateQueries({queryKey:getListRemindersQueryKey()});qc.invalidateQueries({queryKey:getGetDashboardQueryKey()});qc.invalidateQueries({queryKey:getListActivityQueryKey()});setResult(data);},onError:()=>setLocalError('Import did not complete. The preview is still available; review the status before retrying.')});};
   return <div className="fade-in"><PageTitle eyebrow="Move a batch, carefully" title="Bulk imports" subtitle="Map your file, check every row, then explicitly confirm before events are created or guests are invited." />
     <div className="mb-6 grid gap-3 sm:grid-cols-3">{[['01','Upload & map','Choose the columns'],['02','Preview','Check validation'],['03','Confirm','Execute only when ready']].map(([n,t,d],i)=><div key={n} className={`flex items-center gap-3 rounded-xl border p-3 ${i===0?'border-[#bfd4c4] bg-[#edf4eb]':'border-[#e7e3d9] bg-[#fbfaf5]'}`}><span className="font-mono-ui text-lg text-[#58836b]">{n}</span><div><div className="text-xs font-bold text-[#45564e]">{t}</div><div className="text-[10px] text-[#858d87]">{d}</div></div></div>)}</div>
     <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
-      <div className="space-y-5">
+       <div className="space-y-5">
+        <BulkReminderSetup reminders={defaultReminders} onRemindersChange={setDefaultReminders} rowMethod={csvReminderMethod} onRowMethodChange={setCsvReminderMethod} rowTime={csvReminderTime} onRowTimeChange={setCsvReminderTime} onConfigurationChange={reminderConfigurationChanged} rowColumnMapped={Boolean(mapping.reminderSchedule)}/>
         <section className="surface p-5 md:p-6"><div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><span className="rounded-xl bg-[#edf2e8] p-2.5 text-[#4e8064]"><CloudUpload size={19}/></span><div><h2 className="font-display text-xl font-semibold">Upload your event file</h2><p className="text-xs text-[#828b86]">CSV with a header row · up to 500 events</p></div></div><Button kind="secondary" onClick={downloadImportTemplate} testId="button-download-csv-template"><Download size={15}/>Download CSV template</Button></div>
-          <p className="mb-3 text-[11px] leading-5 text-[#828b86]">The template has headers only. Add one event per row; title, startAt, and endAt are required.</p>
+           <p className="mb-3 text-[11px] leading-5 text-[#828b86]">The template has headers only. Add one event per row; title, startAt, and endAt are required. The optional reminders column accepts values like <span className="font-mono-ui">15 minutes; 1 day</span>.</p>
           <label className="flex min-h-[132px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#bfc9bc] bg-[#f7f7f0] px-4 text-center transition hover:border-[#6e9c7e] hover:bg-[#f0f4eb]"><FileSpreadsheet className="mb-2 text-[#58846b]" size={23}/><span className="text-sm font-semibold text-[#425449]">{fileName||'Choose a CSV or Excel file'}</span><span className="mt-1 text-[11px] text-[#859089]">CSV or .xlsx · first worksheet · up to 500 events</span><input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" className="sr-only" onChange={e=>onFile(e.target.files?.[0])} data-testid="input-import-file"/></label>
           {localError&&<div className="mt-3 flex gap-2 rounded-lg bg-[#fbefeb] p-3 text-xs leading-5 text-[#a84b3e]" role="alert"><AlertCircle className="mt-0.5 shrink-0" size={14}/>{localError}</div>}
         </section>
@@ -435,7 +548,30 @@ function ImportsPage() {
         </section>}
       </div>
       <div className="space-y-5">
-        {preview.data&&!result&&<section className="surface overflow-hidden"><div className="border-b border-[#ece8df] px-5 py-4"><div className="text-[10px] font-bold uppercase tracking-[.16em] text-[#688a77]">Validation report</div><h2 className="mt-1 font-display text-xl font-semibold">Preview before execution</h2></div><div className="grid grid-cols-3 gap-2 p-4"><div className="rounded-lg bg-[#f2f0e8] p-3"><div className="font-mono-ui text-xl">{preview.data.totalRows}</div><div className="text-[10px] text-[#7f8781]">Rows</div></div><div className="rounded-lg bg-[#eaf3eb] p-3"><div className="font-mono-ui text-xl text-[#43805e]">{preview.data.validRows}</div><div className="text-[10px] text-[#7f8781]">Valid</div></div><div className="rounded-lg bg-[#fbefeb] p-3"><div className="font-mono-ui text-xl text-[#a84b3e]">{preview.data.invalidRows}</div><div className="text-[10px] text-[#7f8781]">Issues</div></div></div><div className="max-h-[300px] divide-y divide-[#f0ede5] overflow-y-auto">{preview.data.rows.map(row=>{const guests=guestsByRow.get(row.rowNumber)||[];return <div key={row.rowNumber} className="px-5 py-3" data-testid={`row-preview-${row.rowNumber}`}><div className="flex items-center gap-2"><span className={`status-pill ${row.valid?'bg-[#e8f3eb] text-[#367859]':'bg-[#fbefeb] text-[#a84b3e]'}`}>{row.valid?'Ready':'Review'}</span><span className="text-[10px] text-[#969c96]">Row {row.rowNumber}</span><span className="ml-auto truncate text-xs font-semibold text-[#45534d]">{row.title||'Untitled event'}</span></div>{guests.length>0&&<p className="mt-2 break-words text-[11px] text-[#5e7867]" data-testid={`text-import-guests-${row.rowNumber}`}>Invitation requests for: {guests.join(', ')}</p>}{row.errors.length>0&&<ul className="mt-2 space-y-1 text-[11px] text-[#a25447]">{row.errors.map((err,i)=><li key={i}>• {err}</li>)}</ul>}</div>})}</div><div className="border-t border-[#ece8df] p-4"><div className="mb-3 flex gap-2 rounded-lg bg-[#f4f3eb] p-3 text-[11px] leading-5 text-[#6e7871]"><ShieldCheck className="mt-0.5 shrink-0 text-[#4e8064]" size={15}/><span>Nothing has been added to Google Calendar. Execution is separate and explicit. Only valid rows are included. Google Calendar may accept invitation requests for mapped guests, but acceptance does not guarantee email delivery.</span></div><Button onClick={executeImport} disabled={execute.isPending||preview.data.validRows===0} testId="button-confirm-import" className="w-full">{execute.isPending?<LoaderCircle size={15} className="animate-spin"/>:<Check size={15}/>}Confirm import of {preview.data.validRows} events{validGuestCount>0?` · ${validGuestCount} invitations`:''}</Button></div></section>}
+        {preview.data&&!result&&<section className="surface overflow-hidden">
+          <div className="border-b border-[#ece8df] px-5 py-4"><div className="text-[10px] font-bold uppercase tracking-[.16em] text-[#688a77]">Validation report</div><h2 className="mt-1 font-display text-xl font-semibold">Preview before execution</h2></div>
+          <div className="grid grid-cols-3 gap-2 p-4">
+            <div className="rounded-lg bg-[#f2f0e8] p-3"><div className="font-mono-ui text-xl">{preview.data.totalRows}</div><div className="text-[10px] text-[#7f8781]">Rows</div></div>
+            <div className="rounded-lg bg-[#eaf3eb] p-3"><div className="font-mono-ui text-xl text-[#43805e]">{preview.data.validRows}</div><div className="text-[10px] text-[#7f8781]">Valid</div></div>
+            <div className="rounded-lg bg-[#fbefeb] p-3"><div className="font-mono-ui text-xl text-[#a84b3e]">{preview.data.invalidRows}</div><div className="text-[10px] text-[#7f8781]">Issues</div></div>
+          </div>
+          <div className="max-h-[300px] divide-y divide-[#f0ede5] overflow-y-auto">
+            {preview.data.rows.map(row=>{
+              const guests=guestsByRow.get(row.rowNumber)||[];
+              const reminders=remindersByRow.get(row.rowNumber)||[];
+              return <div key={row.rowNumber} className="px-5 py-3" data-testid={`row-preview-${row.rowNumber}`}>
+                <div className="flex items-center gap-2"><span className={`status-pill ${row.valid?'bg-[#e8f3eb] text-[#367859]':'bg-[#fbefeb] text-[#a84b3e]'}`}>{row.valid?'Ready':'Review'}</span><span className="text-[10px] text-[#969c96]">Row {row.rowNumber}</span><span className="ml-auto truncate text-xs font-semibold text-[#45534d]">{row.title||'Untitled event'}</span></div>
+                <p className="mt-2 break-words text-[11px] text-[#607166]" data-testid={`text-import-reminders-${row.rowNumber}`}>Reminders: {reminders.length?reminders.map(describeReminder).join('; '):'None'}</p>
+                {guests.length>0&&<p className="mt-2 break-words text-[11px] text-[#5e7867]" data-testid={`text-import-guests-${row.rowNumber}`}>Invitation requests for: {guests.join(', ')}</p>}
+                {row.errors.length>0&&<ul className="mt-2 space-y-1 text-[11px] text-[#a25447]">{row.errors.map((err,i)=><li key={i}>• {err}</li>)}</ul>}
+              </div>;
+            })}
+          </div>
+          <div className="border-t border-[#ece8df] p-4">
+            <div className="mb-3 flex gap-2 rounded-lg bg-[#f4f3eb] p-3 text-[11px] leading-5 text-[#6e7871]"><ShieldCheck className="mt-0.5 shrink-0 text-[#4e8064]" size={15}/><span>Nothing has been added to Google Calendar. Execution is separate and explicit. Only valid rows are included. Google Calendar may accept invitation requests for mapped guests, but acceptance does not guarantee email delivery.</span></div>
+            <Button onClick={executeImport} disabled={execute.isPending||preview.data.validRows===0} testId="button-confirm-import" className="w-full">{execute.isPending?<LoaderCircle size={15} className="animate-spin"/>:<Check size={15}/>}Confirm import of {preview.data.validRows} events{validGuestCount>0?` · ${validGuestCount} invitations`:''}{validReminderCount>0?` · ${validReminderCount} reminders`:''}</Button>
+          </div>
+        </section>}
         {result&&<div className="surface p-6"><div className="flex items-center gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#e8f3eb] text-[#438668]"><CheckCircle2 size={24}/></div><div><h2 className="font-display text-xl font-semibold">Import processed</h2><p className="mt-1 text-xs text-[#6d7872]">Batch {result.batchId}</p></div></div><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-[#eaf3eb] p-3"><strong className="font-mono-ui text-xl text-[#43805e]">{result.successfulRows}</strong><div className="text-[10px] text-[#7f8781]">Created</div></div><div className="rounded-lg bg-[#fbefeb] p-3"><strong className="font-mono-ui text-xl text-[#a84b3e]">{result.failedRows}</strong><div className="text-[10px] text-[#7f8781]">Failed</div></div><div className="rounded-lg bg-[#f2f0e8] p-3"><strong className="font-mono-ui text-xl">{result.skippedRows}</strong><div className="text-[10px] text-[#7f8781]">Skipped</div></div></div><p className="mt-4 rounded-lg bg-[#f4f3eb] p-3 text-[11px] leading-5 text-[#6e7871]">Google Calendar accepting an invitation request does not guarantee that invitation email is delivered.</p><div className="mt-3 max-h-64 divide-y divide-[#f0ede5] overflow-auto">{result.rows.map(row=><div key={row.rowNumber} className="flex flex-col gap-1 py-3 text-xs sm:flex-row sm:items-start" data-testid={`row-import-result-${row.rowNumber}`}><span className={`status-pill w-fit ${statusClass(row.status)}`}>{pretty(row.status)}</span><span className="text-[#858d87] sm:pt-1">Row {row.rowNumber}</span><span className="text-[#48564f] sm:ml-auto sm:text-right" data-testid={`status-import-invitation-${row.rowNumber}`}>{row.invitationStatus==='requested'?'Invitation request submitted to Google Calendar':row.invitationStatus==='not_requested'?'Invitation not requested':row.invitationStatus==='already_exists'?'Event already exists; invitation not resent':row.invitationStatus==='unknown'?'Request outcome unknown; check Google Calendar':'Invitation not sent'}</span>{row.error&&<span className="text-[#a84b3e] sm:text-right">{row.error}</span>}</div>)}</div><Button kind="secondary" onClick={()=>{setCsv(null);setFileName('');setResult(null);setMapping({});preview.reset();}} testId="button-import-another" className="mt-4"><Plus size={15}/>Import another file</Button></div>}
         <section className="rounded-[17px] border border-[#dce3d9] bg-[#eef3e9] p-5"><div className="flex gap-3"><ShieldCheck className="mt-0.5 text-[#4d8064]" size={18}/><div><div className="text-sm font-semibold text-[#435a4a]">A deliberate two-step process</div><p className="mt-1 text-xs leading-5 text-[#708072]">A preview never creates events. After validation, you must confirm the valid row count before the import is executed.</p></div></div></section>
         <section className="surface overflow-hidden"><div className="border-b border-[#ece8df] px-5 py-4"><div className="text-[10px] font-bold uppercase tracking-[.16em] text-[#698b78]">Recent batches</div><h2 className="mt-1 font-display text-xl font-semibold">Import history</h2></div>{history.isLoading?<div className="p-4"><LoadingRows/></div>:history.isError?<div className="p-4"><QueryError retry={()=>history.refetch()}/></div>:!history.data?.length?<div className="p-5 text-sm text-[#7c8581]">No imports yet. Confirmed batches will be listed here.</div>:history.data.map(batch=><div key={batch.id} className="flex items-center gap-3 border-b border-[#f0ede5] px-5 py-3 last:border-0" data-testid={`row-import-batch-${batch.id}`}><span className={`status-pill ${statusClass(batch.status)}`}>{pretty(batch.status)}</span><div className="min-w-0 flex-1"><div className="text-xs font-semibold text-[#48564f]">{batch.successfulRows} of {batch.totalRows} events created</div><div className="mt-1 text-[10px] text-[#909791]">{dateTime(batch.createdAt)}</div></div>{batch.failedRows>0&&<span className="text-[10px] text-[#a84b3e]">{batch.failedRows} failed</span>}</div>)}</section>
