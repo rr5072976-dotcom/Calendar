@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ImportEventRowRepeat } from './importEventRowRepeat';
+import type { ReminderAttachment } from './reminderAttachment';
 import type { ReminderInput } from './reminderInput';
 
 export interface ImportEventRow {
@@ -24,4 +25,5 @@ export interface ImportEventRow {
   repeat: ImportEventRowRepeat;
   createMeet: boolean;
   reminders: ReminderInput[];
+  reminderAttachment?: ReminderAttachment;
 }

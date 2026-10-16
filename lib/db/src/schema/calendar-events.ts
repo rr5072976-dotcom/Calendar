@@ -4,6 +4,13 @@ import { z } from "zod/v4";
 
 import { googleAccountsTable } from "./google-accounts";
 
+export type ReminderAttachmentRecord = {
+  objectPath: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+};
+
 export const calendarEventsTable = pgTable(
   "calendar_events",
   {
@@ -20,6 +27,7 @@ export const calendarEventsTable = pgTable(
     timeZone: text("time_zone").notNull(),
     description: text("description"),
     guestEmails: jsonb("guest_emails").$type<string[]>().notNull().default([]),
+    reminderAttachment: jsonb("reminder_attachment").$type<ReminderAttachmentRecord | null>(),
     repeat: text("repeat").notNull().default("none"),
     automationPaused: boolean("automation_paused").notNull().default(false),
     meetUrl: text("meet_url"),

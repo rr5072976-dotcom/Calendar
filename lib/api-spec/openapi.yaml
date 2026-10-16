@@ -22,6 +22,8 @@ tags:
     description: Background automation jobs
   - name: imports
     description: Bulk event imports
+  - name: attachments
+    description: Private reminder attachments
 paths:
   /healthz:
     get:
@@ -86,6 +88,24 @@ paths:
       responses:
         "204":
           description: Session ended
+  /storage/uploads/request-url:
+    post:
+      operationId: requestReminderAttachmentUpload
+      tags: [attachments]
+      summary: Request a private upload URL for an optional reminder attachment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReminderAttachmentUploadInput"
+      responses:
+        "200":
+          description: Signed upload URL and private attachment metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderAttachmentUpload"
   /dashboard:
     get:
       operationId: getDashboard
@@ -425,6 +445,8 @@ components:
         reminders:
           type: array
           items: { $ref: "#/components/schemas/ReminderInput" }
+        reminderAttachment:
+          $ref: "#/components/schemas/ReminderAttachment"
     EventUpdate:
       type: object
       properties:
@@ -444,9 +466,13 @@ components:
         reminders:
           type: array
           items: { $ref: "#/components/schemas/ReminderInput" }
+        reminderAttachment:
+          oneOf:
+            - $ref: "#/components/schemas/ReminderAttachment"
+            - type: "null"
     CalendarEvent:
       type: object
-      required: [id, googleEventId, title, startAt, endAt, allDay, timeZone, guestEmails, calendarId, repeat, automationPaused, meetUrl, reminders]
+      required: [id, googleEventId, title, startAt, endAt, allDay, timeZone, guestEmails, calendarId, repeat, automationPaused, meetUrl, reminderAttachment, reminders]
       properties:
         id: { type: string }
         googleEventId: { type: string }
@@ -463,9 +489,34 @@ components:
         repeat: { type: string, enum: [none, daily, weekly, monthly, yearly] }
         automationPaused: { type: boolean }
         meetUrl: { type: ["string", "null"] }
+        reminderAttachment:
+          oneOf:
+            - $ref: "#/components/schemas/ReminderAttachment"
+            - type: "null"
         reminders:
           type: array
           items: { $ref: "#/components/schemas/Reminder" }
+    ReminderAttachment:
+      type: object
+      required: [objectPath, fileName, contentType, size]
+      properties:
+        objectPath: { type: string, minLength: 1, maxLength: 1024 }
+        fileName: { type: string, minLength: 1, maxLength: 255 }
+        contentType: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 15728640 }
+    ReminderAttachmentUploadInput:
+      type: object
+      required: [fileName, contentType, size]
+      properties:
+        fileName: { type: string, minLength: 1, maxLength: 255 }
+        contentType: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 15728640 }
+    ReminderAttachmentUpload:
+      type: object
+      required: [uploadURL, attachment]
+      properties:
+        uploadURL: { type: string, format: uri }
+        attachment: { $ref: "#/components/schemas/ReminderAttachment" }
     Reminder:
       type: object
       required: [id, eventId, eventTitle, scheduledAt, method, status, enabled, attempts]
@@ -541,6 +592,8 @@ components:
         reminders:
           type: array
           items: { $ref: "#/components/schemas/ReminderInput" }
+        reminderAttachment:
+          $ref: "#/components/schemas/ReminderAttachment"
     ImportPreviewInput:
       type: object
       required: [rows]

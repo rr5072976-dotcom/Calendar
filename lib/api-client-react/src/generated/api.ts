@@ -40,6 +40,8 @@ import type {
   ListEventsParams,
   ListJobsParams,
   Reminder,
+  ReminderAttachmentUpload,
+  ReminderAttachmentUploadInput,
   ReminderUpdate
 } from './api.schemas';
 
@@ -462,6 +464,94 @@ export const useLogoutGoogle = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getLogoutGoogleMutationOptions(options));
+    }
+
+export const getRequestReminderAttachmentUploadUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/request-url`
+}
+
+/**
+ * @summary Request a private upload URL for an optional reminder attachment
+ */
+export const requestReminderAttachmentUpload = async (reminderAttachmentUploadInput: ReminderAttachmentUploadInput, options?: Parameters<typeof customFetch>[1]): Promise<ReminderAttachmentUpload> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ReminderAttachmentUpload>(getRequestReminderAttachmentUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reminderAttachmentUploadInput)
+  }
+);}
+
+
+
+
+
+export const getRequestReminderAttachmentUploadMutationKey = () => ['requestReminderAttachmentUpload'] as const;
+
+export const getRequestReminderAttachmentUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestReminderAttachmentUpload>>, TError,RequestReminderAttachmentUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestReminderAttachmentUpload>>, TError,RequestReminderAttachmentUploadMutationVariables, TContext> => {
+
+const mutationKey = getRequestReminderAttachmentUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestReminderAttachmentUpload>>, RequestReminderAttachmentUploadMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestReminderAttachmentUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestReminderAttachmentUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestReminderAttachmentUpload>>>
+    export type RequestReminderAttachmentUploadMutationBody = BodyType<ReminderAttachmentUploadInput>
+    export type RequestReminderAttachmentUploadMutationError = ErrorType<unknown>
+    export type RequestReminderAttachmentUploadMutationVariables = {data: BodyType<ReminderAttachmentUploadInput>}
+
+    /**
+ * @summary Request a private upload URL for an optional reminder attachment
+ */
+export const useRequestReminderAttachmentUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestReminderAttachmentUpload>>, TError,RequestReminderAttachmentUploadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestReminderAttachmentUpload>>,
+        TError,
+        RequestReminderAttachmentUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestReminderAttachmentUploadMutationOptions(options));
     }
 
 export const getGetDashboardUrl = () => {

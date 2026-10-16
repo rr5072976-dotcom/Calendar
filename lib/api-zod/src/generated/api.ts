@@ -64,8 +64,56 @@ export const LogoutGoogleResponse = zod.void()
 
 
 /**
+ * @summary Request a private upload URL for an optional reminder attachment
+ */
+export const requestReminderAttachmentUploadBodyFileNameMax = 255;
+
+export const requestReminderAttachmentUploadBodyContentTypeMax = 255;
+
+export const requestReminderAttachmentUploadBodySizeMax = 15728640;
+
+
+
+export const RequestReminderAttachmentUploadBody = zod.object({
+  "fileName": zod.string().min(1).max(requestReminderAttachmentUploadBodyFileNameMax),
+  "contentType": zod.string().min(1).max(requestReminderAttachmentUploadBodyContentTypeMax),
+  "size": zod.number().int().min(1).max(requestReminderAttachmentUploadBodySizeMax)
+})
+
+export const requestReminderAttachmentUploadResponseAttachmentObjectPathMax = 1024;
+
+export const requestReminderAttachmentUploadResponseAttachmentFileNameMax = 255;
+
+export const requestReminderAttachmentUploadResponseAttachmentContentTypeMax = 255;
+
+export const requestReminderAttachmentUploadResponseAttachmentSizeMax = 15728640;
+
+
+
+export const RequestReminderAttachmentUploadResponse = zod.object({
+  "uploadURL": zod.string().url(),
+  "attachment": zod.object({
+  "objectPath": zod.string().min(1).max(requestReminderAttachmentUploadResponseAttachmentObjectPathMax),
+  "fileName": zod.string().min(1).max(requestReminderAttachmentUploadResponseAttachmentFileNameMax),
+  "contentType": zod.string().min(1).max(requestReminderAttachmentUploadResponseAttachmentContentTypeMax),
+  "size": zod.number().int().min(1).max(requestReminderAttachmentUploadResponseAttachmentSizeMax)
+})
+})
+
+
+/**
  * @summary Get dashboard events, reminders, and activity
  */
+export const getDashboardResponseUpcomingEventsItemReminderAttachmentOneObjectPathMax = 1024;
+
+export const getDashboardResponseUpcomingEventsItemReminderAttachmentOneFileNameMax = 255;
+
+export const getDashboardResponseUpcomingEventsItemReminderAttachmentOneContentTypeMax = 255;
+
+export const getDashboardResponseUpcomingEventsItemReminderAttachmentOneSizeMax = 15728640;
+
+
+
 export const GetDashboardResponse = zod.object({
   "upcomingEvents": zod.array(zod.object({
   "id": zod.string(),
@@ -81,6 +129,12 @@ export const GetDashboardResponse = zod.object({
   "repeat": zod.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']),
   "automationPaused": zod.boolean(),
   "meetUrl": zod.string().nullable(),
+  "reminderAttachment": zod.union([zod.object({
+  "objectPath": zod.string().min(1).max(getDashboardResponseUpcomingEventsItemReminderAttachmentOneObjectPathMax),
+  "fileName": zod.string().min(1).max(getDashboardResponseUpcomingEventsItemReminderAttachmentOneFileNameMax),
+  "contentType": zod.string().min(1).max(getDashboardResponseUpcomingEventsItemReminderAttachmentOneContentTypeMax),
+  "size": zod.number().int().min(1).max(getDashboardResponseUpcomingEventsItemReminderAttachmentOneSizeMax)
+}),zod.null()]),
   "reminders": zod.array(zod.object({
   "id": zod.string(),
   "eventId": zod.string(),
@@ -138,6 +192,16 @@ export const ListEventsQueryParams = zod.object({
   "to": zod.date().optional()
 })
 
+export const listEventsResponseReminderAttachmentOneObjectPathMax = 1024;
+
+export const listEventsResponseReminderAttachmentOneFileNameMax = 255;
+
+export const listEventsResponseReminderAttachmentOneContentTypeMax = 255;
+
+export const listEventsResponseReminderAttachmentOneSizeMax = 15728640;
+
+
+
 export const ListEventsResponseItem = zod.object({
   "id": zod.string(),
   "googleEventId": zod.string(),
@@ -152,6 +216,12 @@ export const ListEventsResponseItem = zod.object({
   "repeat": zod.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']),
   "automationPaused": zod.boolean(),
   "meetUrl": zod.string().nullable(),
+  "reminderAttachment": zod.union([zod.object({
+  "objectPath": zod.string().min(1).max(listEventsResponseReminderAttachmentOneObjectPathMax),
+  "fileName": zod.string().min(1).max(listEventsResponseReminderAttachmentOneFileNameMax),
+  "contentType": zod.string().min(1).max(listEventsResponseReminderAttachmentOneContentTypeMax),
+  "size": zod.number().int().min(1).max(listEventsResponseReminderAttachmentOneSizeMax)
+}),zod.null()]),
   "reminders": zod.array(zod.object({
   "id": zod.string(),
   "eventId": zod.string(),
@@ -176,6 +246,14 @@ export const createEventBodyDescriptionMax = 8000;
 
 export const createEventBodyRemindersItemAmountMin = 0;
 
+export const createEventBodyReminderAttachmentObjectPathMax = 1024;
+
+export const createEventBodyReminderAttachmentFileNameMax = 255;
+
+export const createEventBodyReminderAttachmentContentTypeMax = 255;
+
+export const createEventBodyReminderAttachmentSizeMax = 15728640;
+
 
 
 export const CreateEventBody = zod.object({
@@ -195,8 +273,24 @@ export const CreateEventBody = zod.object({
   "unit": zod.enum(['minutes', 'hours', 'days', 'weeks']),
   "localTime": zod.string().describe('HH:mm in the event time zone'),
   "method": zod.enum(['email', 'popup'])
-}))
+})),
+  "reminderAttachment": zod.object({
+  "objectPath": zod.string().min(1).max(createEventBodyReminderAttachmentObjectPathMax),
+  "fileName": zod.string().min(1).max(createEventBodyReminderAttachmentFileNameMax),
+  "contentType": zod.string().min(1).max(createEventBodyReminderAttachmentContentTypeMax),
+  "size": zod.number().int().min(1).max(createEventBodyReminderAttachmentSizeMax)
+}).optional()
 })
+
+export const createEventResponseReminderAttachmentOneObjectPathMax = 1024;
+
+export const createEventResponseReminderAttachmentOneFileNameMax = 255;
+
+export const createEventResponseReminderAttachmentOneContentTypeMax = 255;
+
+export const createEventResponseReminderAttachmentOneSizeMax = 15728640;
+
+
 
 export const CreateEventResponse = zod.object({
   "id": zod.string(),
@@ -212,6 +306,12 @@ export const CreateEventResponse = zod.object({
   "repeat": zod.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']),
   "automationPaused": zod.boolean(),
   "meetUrl": zod.string().nullable(),
+  "reminderAttachment": zod.union([zod.object({
+  "objectPath": zod.string().min(1).max(createEventResponseReminderAttachmentOneObjectPathMax),
+  "fileName": zod.string().min(1).max(createEventResponseReminderAttachmentOneFileNameMax),
+  "contentType": zod.string().min(1).max(createEventResponseReminderAttachmentOneContentTypeMax),
+  "size": zod.number().int().min(1).max(createEventResponseReminderAttachmentOneSizeMax)
+}),zod.null()]),
   "reminders": zod.array(zod.object({
   "id": zod.string(),
   "eventId": zod.string(),
@@ -233,6 +333,16 @@ export const GetEventParams = zod.object({
   "eventId": zod.coerce.string()
 })
 
+export const getEventResponseReminderAttachmentOneObjectPathMax = 1024;
+
+export const getEventResponseReminderAttachmentOneFileNameMax = 255;
+
+export const getEventResponseReminderAttachmentOneContentTypeMax = 255;
+
+export const getEventResponseReminderAttachmentOneSizeMax = 15728640;
+
+
+
 export const GetEventResponse = zod.object({
   "id": zod.string(),
   "googleEventId": zod.string(),
@@ -247,6 +357,12 @@ export const GetEventResponse = zod.object({
   "repeat": zod.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']),
   "automationPaused": zod.boolean(),
   "meetUrl": zod.string().nullable(),
+  "reminderAttachment": zod.union([zod.object({
+  "objectPath": zod.string().min(1).max(getEventResponseReminderAttachmentOneObjectPathMax),
+  "fileName": zod.string().min(1).max(getEventResponseReminderAttachmentOneFileNameMax),
+  "contentType": zod.string().min(1).max(getEventResponseReminderAttachmentOneContentTypeMax),
+  "size": zod.number().int().min(1).max(getEventResponseReminderAttachmentOneSizeMax)
+}),zod.null()]),
   "reminders": zod.array(zod.object({
   "id": zod.string(),
   "eventId": zod.string(),
@@ -274,6 +390,14 @@ export const updateEventBodyDescriptionMax = 8000;
 
 export const updateEventBodyRemindersItemAmountMin = 0;
 
+export const updateEventBodyReminderAttachmentOneObjectPathMax = 1024;
+
+export const updateEventBodyReminderAttachmentOneFileNameMax = 255;
+
+export const updateEventBodyReminderAttachmentOneContentTypeMax = 255;
+
+export const updateEventBodyReminderAttachmentOneSizeMax = 15728640;
+
 
 
 export const UpdateEventBody = zod.object({
@@ -294,8 +418,24 @@ export const UpdateEventBody = zod.object({
   "unit": zod.enum(['minutes', 'hours', 'days', 'weeks']),
   "localTime": zod.string().describe('HH:mm in the event time zone'),
   "method": zod.enum(['email', 'popup'])
-})).optional()
+})).optional(),
+  "reminderAttachment": zod.union([zod.object({
+  "objectPath": zod.string().min(1).max(updateEventBodyReminderAttachmentOneObjectPathMax),
+  "fileName": zod.string().min(1).max(updateEventBodyReminderAttachmentOneFileNameMax),
+  "contentType": zod.string().min(1).max(updateEventBodyReminderAttachmentOneContentTypeMax),
+  "size": zod.number().int().min(1).max(updateEventBodyReminderAttachmentOneSizeMax)
+}),zod.null()]).optional()
 })
+
+export const updateEventResponseReminderAttachmentOneObjectPathMax = 1024;
+
+export const updateEventResponseReminderAttachmentOneFileNameMax = 255;
+
+export const updateEventResponseReminderAttachmentOneContentTypeMax = 255;
+
+export const updateEventResponseReminderAttachmentOneSizeMax = 15728640;
+
+
 
 export const UpdateEventResponse = zod.object({
   "id": zod.string(),
@@ -311,6 +451,12 @@ export const UpdateEventResponse = zod.object({
   "repeat": zod.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']),
   "automationPaused": zod.boolean(),
   "meetUrl": zod.string().nullable(),
+  "reminderAttachment": zod.union([zod.object({
+  "objectPath": zod.string().min(1).max(updateEventResponseReminderAttachmentOneObjectPathMax),
+  "fileName": zod.string().min(1).max(updateEventResponseReminderAttachmentOneFileNameMax),
+  "contentType": zod.string().min(1).max(updateEventResponseReminderAttachmentOneContentTypeMax),
+  "size": zod.number().int().min(1).max(updateEventResponseReminderAttachmentOneSizeMax)
+}),zod.null()]),
   "reminders": zod.array(zod.object({
   "id": zod.string(),
   "eventId": zod.string(),
@@ -448,6 +594,14 @@ export const ListImportsResponse = zod.array(ListImportsResponseItem)
 
 export const previewImportBodyRowsItemRemindersItemAmountMin = 0;
 
+export const previewImportBodyRowsItemReminderAttachmentObjectPathMax = 1024;
+
+export const previewImportBodyRowsItemReminderAttachmentFileNameMax = 255;
+
+export const previewImportBodyRowsItemReminderAttachmentContentTypeMax = 255;
+
+export const previewImportBodyRowsItemReminderAttachmentSizeMax = 15728640;
+
 export const previewImportBodyRowsMax = 500;
 
 
@@ -472,7 +626,13 @@ export const PreviewImportBody = zod.object({
   "unit": zod.enum(['minutes', 'hours', 'days', 'weeks']),
   "localTime": zod.string().describe('HH:mm in the event time zone'),
   "method": zod.enum(['email', 'popup'])
-}))
+})),
+  "reminderAttachment": zod.object({
+  "objectPath": zod.string().min(1).max(previewImportBodyRowsItemReminderAttachmentObjectPathMax),
+  "fileName": zod.string().min(1).max(previewImportBodyRowsItemReminderAttachmentFileNameMax),
+  "contentType": zod.string().min(1).max(previewImportBodyRowsItemReminderAttachmentContentTypeMax),
+  "size": zod.number().int().min(1).max(previewImportBodyRowsItemReminderAttachmentSizeMax)
+}).optional()
 })).min(1).max(previewImportBodyRowsMax)
 })
 

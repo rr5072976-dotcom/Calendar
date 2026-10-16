@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EventInputRepeat } from './eventInputRepeat';
+import type { ReminderAttachment } from './reminderAttachment';
 import type { ReminderInput } from './reminderInput';
 
 export interface EventInput {
@@ -25,4 +26,5 @@ export interface EventInput {
   repeat: EventInputRepeat;
   createMeet: boolean;
   reminders: ReminderInput[];
+  reminderAttachment?: ReminderAttachment;
 }

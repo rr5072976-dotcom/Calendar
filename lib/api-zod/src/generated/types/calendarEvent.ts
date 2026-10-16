@@ -7,6 +7,7 @@
  */
 import type { CalendarEventRepeat } from './calendarEventRepeat';
 import type { Reminder } from './reminder';
+import type { ReminderAttachment } from './reminderAttachment';
 
 export interface CalendarEvent {
   id: string;
@@ -24,5 +25,6 @@ export interface CalendarEvent {
   automationPaused: boolean;
   /** @nullable */
   meetUrl: string | null;
+  reminderAttachment: ReminderAttachment | null;
   reminders: Reminder[];
 }

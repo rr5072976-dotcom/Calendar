@@ -88,6 +88,29 @@ export const EventInputRepeat = {
   yearly: 'yearly',
 } as const;
 
+export interface ReminderAttachment {
+  /**
+     * @minLength 1
+     * @maxLength 1024
+     */
+  objectPath: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  fileName: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  contentType: string;
+  /**
+     * @minimum 1
+     * @maximum 15728640
+     */
+  size: number;
+}
+
 export interface EventInput {
   /**
      * @minLength 1
@@ -105,6 +128,7 @@ export interface EventInput {
   repeat: EventInputRepeat;
   createMeet: boolean;
   reminders: ReminderInput[];
+  reminderAttachment?: ReminderAttachment;
 }
 
 export type EventUpdateRepeat = typeof EventUpdateRepeat[keyof typeof EventUpdateRepeat];
@@ -136,6 +160,7 @@ export interface EventUpdate {
   createMeet?: boolean;
   automationPaused?: boolean;
   reminders?: ReminderInput[];
+  reminderAttachment?: ReminderAttachment | null;
 }
 
 export type CalendarEventRepeat = typeof CalendarEventRepeat[keyof typeof CalendarEventRepeat];
@@ -196,7 +221,31 @@ export interface CalendarEvent {
   automationPaused: boolean;
   /** @nullable */
   meetUrl: string | null;
+  reminderAttachment: ReminderAttachment | null;
   reminders: Reminder[];
+}
+
+export interface ReminderAttachmentUploadInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  fileName: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  contentType: string;
+  /**
+     * @minimum 1
+     * @maximum 15728640
+     */
+  size: number;
+}
+
+export interface ReminderAttachmentUpload {
+  uploadURL: string;
+  attachment: ReminderAttachment;
 }
 
 export interface ReminderUpdate {
@@ -292,6 +341,7 @@ export interface ImportEventRow {
   repeat: ImportEventRowRepeat;
   createMeet: boolean;
   reminders: ReminderInput[];
+  reminderAttachment?: ReminderAttachment;
 }
 
 export interface ImportPreviewInput {
